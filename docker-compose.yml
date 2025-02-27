@@ -1,0 +1,103 @@
+version: '3.8'
+
+services:
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:8080"
+    depends_on:
+      - auth-api
+      - todos-api
+      - users-api
+    networks:
+      - app-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.frontend.rule=Host(`domain.com`)"
+      - "traefik.http.routers.frontend.entrypoints=websecure"
+      - "traefik.http.routers.frontend.tls.certresolver=myresolver"
+      - "traefik.http.services.frontend.loadbalancer.server.port=8080"
+
+  auth-api:
+    build: ./auth-api
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - USER_API_URL=http://users-api:8002
+    depends_on:
+      - redis
+    networks:
+      - app-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.auth.rule=Host(`auth.domain.com`)"
+      - "traefik.http.routers.auth.entrypoints=websecure"
+      - "traefik.http.routers.auth.tls.certresolver=myresolver"
+      - "traefik.http.services.auth.loadbalancer.server.port=8000"
+
+  todos-api:
+    build: ./todos-api
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - AUTH_API_URL=http://auth-api:8000
+    depends_on:
+      - redis
+      - auth-api
+    networks:
+      - app-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.todos.rule=Host(`todos.domain.com`)"
+      - "traefik.http.routers.todos.entrypoints=websecure"
+      - "traefik.http.routers.todos.tls.certresolver=myresolver"
+      - "traefik.http.services.todos.loadbalancer.server.port=8001"
+
+  users-api:
+    build: ./users-api
+    environment:
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - redis
+    networks:
+      - app-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.users.rule=Host(`users.domain.com`)"
+      - "traefik.http.routers.users.entrypoints=websecure"
+      - "traefik.http.routers.users.tls.certresolver=myresolver"
+      - "traefik.http.services.users.loadbalancer.server.port=8002"
+
+  log-message-processor:
+    build: ./log-message-processor
+    environment:
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - redis
+    networks:
+      - app-network
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    networks:
+      - app-network
+    volumes:
+      - redis-data:/data
+
+  traefik:
+    image: traefik:v2.8
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./traefik/traefik.toml:/etc/traefik/traefik.toml
+      - ./traefik/certificates:/certificates
+    networks:
+      - app-network
+
+networks:
+  app-network:
+
+volumes:
+  redis-data:
