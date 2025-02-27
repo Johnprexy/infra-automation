@@ -1,0 +1,60 @@
+---
+- name: Create application directory
+  file:
+    path: "{{ app_directory }}"
+    state: directory
+    mode: '0755'
+
+- name: Clone application repository
+  git:
+    repo: "{{ app_repository }}"
+    dest: "{{ app_directory }}"
+    version: main
+    force: yes
+
+- name: Create Traefik certificates directory
+  file:
+    path: "{{ app_directory }}/traefik/certificates"
+    state: directory
+    mode: '0755'
+
+- name: Generate ACME JSON file
+  file:
+    path: "{{ app_directory }}/traefik/certificates/acme.json"
+    state: touch
+    mode: '0600'
+
+- name: Update domain name in docker-compose file
+  replace:
+    path: "{{ app_directory }}/docker-compose.yml"
+    regexp: 'domain\.com'
+    replace: "{{ domain_name }}"
+
+- name: Update email in Traefik config
+  replace:
+    path: "{{ app_directory }}/traefik/traefik.toml"
+    regexp: 'your-email@example\.com'
+    replace: "admin@{{ domain_name }}"
+
+- name: Start the application with Docker Compose
+  shell: |
+    cd {{ app_directory }} && docker-compose up -d
+  args:
+    executable: /bin/bash
+
+- name: Wait for services to start
+  wait_for:
+    host: localhost
+    port: 443
+    state: started
+    timeout: 180
+
+- name: Check application status
+  shell: docker-compose ps
+  args:
+    chdir: "{{ app_directory }}"
+  register: app_status
+
+- name: Show application status
+  debug:
+    var: app_status.stdout_lines

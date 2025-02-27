@@ -1,0 +1,12 @@
+---
+- name: Deploy Todo Application
+  hosts: app_servers
+  become: true
+  vars:
+    app_repository: https://github.com/Johnprexy/infra-automation.git
+    app_directory: /opt/todo-app
+    domain_name: domain.com
+
+  roles:
+    - dependencies
+    - deployment
